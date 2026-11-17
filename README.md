@@ -46,3 +46,6 @@ Jenkinsfile defines these stages:
 4. Run Build Now. A GitHub webhook can trigger the same job on pushes if the GitHub and webhook plugins are configured.
 
 The pipeline tags images locally on the Jenkins agent. Publishing to Docker Hub is a separate optional step and requires a Docker Hub repository plus credentials stored in Jenkins Credentials.
+=======
+# dapartment-performance
+>>>>>>> dd84ca4c7076769c6ca4497213b8bf5b794e4607
