@@ -1,51 +1,48 @@
 # Department Performance Dashboard
 
-A repeatable local deployment demo using Git/GitHub, Docker Compose, PostgreSQL, and Jenkins.
+Flask dashboard and JSON API, with PostgreSQL, packaged using Docker and deployed to a test environment by Jenkins.
 
-## Application components
+## Components and dependencies
 
-- app: Flask dashboard and JSON API on port 8080, backed by PostgreSQL.
-- db: PostgreSQL 16 with a named volume. Compose waits for the database health check before starting the app.
-- Jenkins: Builds the app image, starts an isolated Compose stack, checks /health, and removes the CI stack afterward.
-- Git/GitHub: Store the project in a repository; configure Jenkins to load its Jenkinsfile from SCM.
+- app: Flask dashboard and /api/departments endpoint, served on container port 8080.
+- db: PostgreSQL 16 with persistent Compose volume. The app waits for the DB health check.
+- Jenkins: checks out GitHub source, builds and tests the image, creates build and test tags, deploys the tagged image, then verifies the live endpoints.
+- Git/GitHub: source control and Jenkins Pipeline from SCM.
 
 ## Run locally
 
-Docker Engine and Docker Compose plugin are required.
+Requires Docker Engine and Docker Compose.
 
-    cp .env.example .env
     docker compose up --build -d
-    docker compose ps
 
-Open http://localhost:8080. Health endpoint: /health. Metrics API: /api/departments.
+The included local .env sets host port 18081 because 8080 is already in use on this laptop. Open http://localhost:18081. Health: /health. Metrics API: /api/departments.
 
-Stop services and retain database data:
+Stop the local stack with docker compose down. Remove its database volume too with docker compose down -v.
 
-    docker compose down
+## Automated checks
 
-Reset the database volume and sample data:
+The unittest suite covers health status, database failure behavior, API data, and dashboard rendering. Run it inside the built image:
 
-    docker compose down -v
+    docker build -t department-performance-dashboard:local .
+    docker run --rm department-performance-dashboard:local python -m unittest discover -s tests -v
 
-## Environment variables
+## CI/CD pipeline
 
-Copy .env.example to .env before starting Compose.
+Jenkinsfile defines these stages:
 
-| Variable | Purpose | Default |
-|---|---|---|
-| APP_PORT | Host port for dashboard | 8080 |
-| POSTGRES_DB | Database name | performance |
-| POSTGRES_USER | Database user | dashboard |
-| POSTGRES_PASSWORD | Local database password | change-this-local-password |
-| DATABASE_URL | App connection string | Compose service db |
+1. Checkout from the configured GitHub repository using checkout scm.
+2. Build Docker image tagged department-performance-dashboard:<BUILD_NUMBER>.
+3. Run the automated unittest suite in a disposable container.
+4. Add the department-performance-dashboard:test tag and inspect both tags.
+5. Deploy that exact build tag with PostgreSQL to a separate Compose test project.
+6. Poll /health and request /api/departments; fail the build if either check fails.
+7. Always remove the temporary test containers and volume. The built tagged images remain on the Jenkins agent as the pipeline artefact.
 
-Credentials are for local simulation. Use Jenkins Credentials and managed secrets in a shared deployment.
+## Connect Jenkins to GitHub
 
-## Jenkins and GitHub
+1. Create an empty GitHub repository and push this project to it. The project already has a local Git repository on branch main.
+2. In Jenkins, create a Pipeline job. Select Pipeline script from SCM, choose Git, enter the repository clone URL and credentials if it is private, and set the script path to Jenkinsfile.
+3. Ensure the Jenkins agent has Git, Docker CLI plus Compose, Docker daemon access, and curl.
+4. Run Build Now. A GitHub webhook can trigger the same job on pushes if the GitHub and webhook plugins are configured.
 
-1. Push this folder to a GitHub repository.
-2. Create a Jenkins Pipeline job using Pipeline script from SCM, choose Git and the repository URL, and set script path to Jenkinsfile.
-3. The Jenkins agent needs Git, Docker CLI with Compose, Docker daemon access, and curl. Restrict Docker socket access to trusted agents because it grants host-level control.
-4. Run the job. It builds the app image, starts PostgreSQL and the app on port 18080, checks /health, and cleans up the temporary stack.
-
-The CI stack uses a separate Compose project name and host port so it can run beside the local dashboard.
+The pipeline tags images locally on the Jenkins agent. Publishing to Docker Hub is a separate optional step and requires a Docker Hub repository plus credentials stored in Jenkins Credentials.

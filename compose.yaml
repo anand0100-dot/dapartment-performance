@@ -15,6 +15,7 @@ services:
     restart: unless-stopped
   app:
     build: .
+    image: ${APP_IMAGE:-department-performance-dashboard:local}
     environment:
       PORT: 8080
       DATABASE_URL: ${DATABASE_URL:-postgresql://dashboard:change-this-local-password@db:5432/performance}
